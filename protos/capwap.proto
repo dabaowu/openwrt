@@ -1,0 +1,242 @@
+syntax = "proto3";
+
+package gbcom.capwap;
+option go_package = "./capwap";
+
+/// 规范：
+/// 1. enum类型必须有Type后缀
+/// 2. 消息类型必须有Msg前缀
+/// 3. 控制消息通信采用udp协议，客户端5007，server端5008
+/// 4. 文件传输通信采用tcp协议，客户端5007，server端5008
+
+/// 关键消息注解：
+/// 1. packet: 控制消息，客户端 <-> Server端 UDP通信的消息结构体
+/// 2. MsgType：packet消息类别，消息体必须包含子属性，参考snmp协议，有set请求，get请求，trap通知，inform通知，响应消息类型
+/// 2.2.1 MsgType.0:响应消息，接收端根据请求端的set、get、inform消息，应答的响应，响应消息时可以修改header.mcode，但不能修改header.Id
+/// 2.2.2 MsgType.1:get请求消息
+/// 2.2.3 MsgType.2:set请求消息
+/// 2.2.4 MsgType.3:trap通知消息，接收端不需要响应
+/// 2.2.4 MsgType.4:inform通知消息，接收端需要应答
+/// 3. MsgHeader: packet消息头部，描述packet消息具体的消息类型，接收端依据此头部的消息码判断携带的具体消息结构体
+/// 3.1 hdr.version: 消息格式定义的版本号，暂不使用; 此字段一旦改变，意味着本消息结构体的定义全部重新定义【verdor，mcode的定义都将发生变化】
+/// 3.2 hdr.id: 每台设备发出的请求消息，id唯一【一段时间内】
+/// 3.3 hdr.mcode: pcaket携带的具体消息类型
+/// 3.4 hdr.ecode-error: 针对响应消息有效，响应消息失败后携带失败的原因码和描述信息
+
+// 消息码厂商，或者厂商自定义模块
+enum VendorType {
+  Gbcom      = 0;
+}
+
+// 消息类型
+enum MsgType {
+  Response   = 0; // get/set/inform.request response
+  GetRequest = 1; // 查询请求，返回响应
+  SetRequest = 2; // 设置设置，返回响应
+  Trap       = 3; // 客户端向server端，trap.request, server不需要响应
+  Inform     = 4; // 客户端向server端，inform.request, server需要响应
+}
+
+// 消息代码,消息中携带的有效消息类型
+enum MsgCodeType {
+  Invailed       = 0;
+  Reboot         = 1; // omc对设备设置重启
+  Alarm          = 2; // 设备向omc发送告警
+  Discover       = 3; // 设备向omc发送发现消息【上线请求】
+  OnlineStatus   = 4; // omc向设备发送设置上线状态，客户端回应上线状态
+  Keepalive      = 5; // 客户端向server端发送的保活消息
+  Cfgtags        = 6; // 客户端向server端发送的查询配置标签消息，server端需要给响应
+  VersionUpgrade = 7; // OMC向客户端方发送需要执行升级到目标版本，并重启, MC向客户端发送的消息携带MsgFile
+  ConfigUpgrade  = 8; // OMC向客户端方发送需要同步整体配置，并重启, OMC向客户端发送的消息携带MsgFile
+  ConfigUpload   = 9; // OMC上没有设备配置文件，设备首次上线时必须上传配置文件，OMC上保留备份; OMC向客户端发送的消息携带MsgFile
+  HbLteSignal    = 10; // 客户端向OMC每秒发送空口信号质量
+  HbWlanSignal   = 11; // 客户端向OMC每秒发送空口信号质量
+  HbBoradStatus  = 12; // 客户端向OMC每15秒钟发送资源利用统计消息，端口流量
+  HbPerMinute    = 13; // 客户端向OMC每60秒钟发送disk资源利用率
+}
+
+// 针对查询、设置、inform消息响应结果
+enum ErrCodeType {
+  Ok           = 0; // 成功
+  FileNotExist = 1; // 文件不存在
+}
+
+// 请求消息的头部
+message MsgHeader {
+  int32       version = 1; // 消息协议版本号，暂不是使用;hdr中增加了verdor,消息定义需要改变通过字段修订，version预留为整个消息包全新定义
+  uint32      id      = 2; // 消息包ID号，唯一【一个设备主动发出的消息包，ID自增、唯一】
+  VendorType  vendor  = 3;  // 厂商，不同的厂商对消息码可以重新定义【mcode对应的消息结构体】
+  MsgCodeType mcode   = 4;  // 消息码，与消息结构体一一对应
+  ErrCodeType ecode   = 5;  // 错误吗，针对请求响应反馈响应的结果
+  string      error   = 6;  // 若响应码失败，可能携带失败的原因
+  string      mac     = 7;  // 客户端->OMC的消息必须携带此参数，若客户端设备为动态IP地址，必须携带此参数标识消息包归属哪个设备
+}
+
+
+// OMC与设备之间通信的数据消息体结构
+message Message {
+  MsgType            type                 = 1; // 消息类型
+  MsgHeader          header               = 2; // 请求消息头部
+  MsgAlarm           alarm                = 3; // 告警消息
+  MsgDiscover        discover             = 4; // 发现消息
+  MsgOnline          onlineStatus         = 5; // omc->设置客户端上线消息，客户端->响应上线消息
+  MsgKeepalive       keepalive            = 6; // 客户端向OMC端发送的保活消息
+  MsgCfgtags         cfgtags              = 7; // 客户端向OMC端发送的查询配置标签消息，OMC端需要给响应; 客户端通过心跳消息主动检查配置同步
+  MsgFile            versionUpgrade       = 8; // OMC向客户端方发送需要执行升级到目标版本，并重启; OMC主动发起的强制客户端升级; 正常运维模式不会有此流程
+  MsgFile            configUpgrade        = 9; // OMC向客户端方发送需要同步整体配置，并重启; OMC主动泛起的强制客户端整体配置同步; 正常运维模式不会有此流程
+  MsgHbLteSignal     hbLteSignal          = 10; // 客户端向OMC每秒发送空口信号质量
+  MsgHbWlanSignal    hbWlanSignal         = 11; // 客户端向OMC每秒发送空口信号质量
+  MsgHbBoradStatus   hbBoradStatus        = 12; // 客户端向OMC每15秒钟发送资源利用统计消息，端口流量
+  MsgHbPerMinute     hbPerMinute          = 13; // 客户端向OMC每60秒钟发送disk资源利用率
+}
+
+// 设备上线请求消息【发现消息】,别名是请求上线，客户端以trap消息类型发送，server端不需要响应
+message MsgDiscover {
+  int32  devCode   = 1; // 设备代码
+  string model     = 2; // 设备型号
+  string hostname  = 3; // 设备名称
+  string sn        = 4; // 设备sn号
+  string mac       = 5; // 设备mac
+  string ip        = 6; // 设备管理IP
+  string version   = 7; // 当前版本
+}
+
+// 设备工作状态
+enum OnlineStatusType {
+  Offline         = 0; // 在网管离线，此状态设备检测到告警信息应该缓存，上线后依次发出
+  Online          = 1; // 在网管在线，应周期性发送心跳查询网管是否需要升级和配置同步
+  VersionUpdating = 2; // 版本升级中，此状态下心跳还在发送，但心跳中携带的版本和配置信息不在检查更新
+  ConfigUpdating  = 3; // 配置同步中，此状态下心跳还在发送，但心跳中携带的版本和配置信息不在检查更新
+}
+
+// 设置上线，查询上线状态
+message MsgOnline{
+  OnlineStatusType  status = 1; // 网管向客户端发送设置上线消息，客户端应答此消息
+}
+
+// 告警消息
+message MsgAlarm {
+  string  sn        = 1; // 告警序列号
+  int32   timestamp = 2; // 告警时间戳，发生时间
+  int32   code      = 3; // 告警码
+  int32   stat      = 4; // 告警类型，0：事件，1：告警产生，2：告警消除
+  string  info      = 5; // 告警消息
+  string  sign      = 6; // 告警签名，如果inform中标识 Lan4口down， 此处表示为Lan4
+}
+
+// 配置标识，对应/etc/config目录下每个配置文件，一一映射
+enum CfgTagType {
+  Globel      = 0; // 所有配置的唯一标识
+  CfgNtp      = 1; // ntp配置文件的标识
+  CfgLog      = 2; // log配置文件的标识
+  CfgPcap     = 3; // pcap配置标识
+}
+
+// 配置标识、标签
+message CfgTag {
+  CfgTagType type  = 1; // 配置文件别名，采用enum方式避免字符输入错误
+  string     tag   = 2; // 配置文件的配置标识，tag值为空则没有此配置
+}
+
+
+// 客户端向服务器发送的心跳消息; OMC向客户端应答该消息
+message MsgKeepalive {
+  int64    uptime      = 1; // 系统上电运行工作时长,单位秒
+  string   version     = 2; // 设备端正在运行的版本，通过心跳检查及时触发升级
+  CfgTag   CftTag      = 3; // 客户端的配置标识，服务器端记录是否告警【主动判断】,客户端只上传globel一条消息，server端响应上根据server端的值更新此消息
+}
+
+// 客户端通过心跳消息判断与server端配置tag不一致，触发查询哪个配置文件不一致，并拉去配置文件更新配置
+message MsgCfgtags {
+  repeated CfgTag tags = 1; // 查询哪个文件
+}
+
+// Lte信号质量
+message LteSinal {
+  int32  index    = 1; // LTE模块ID编号
+  int32  attached = 2; // 驻网状态
+  int32  pcid     = 3; // 接入的PCI
+  int32  rsrp     = 4; // 
+  int32  rsrq     = 5; //
+  int32  rssi     = 6; // 
+  int32  sinr     = 7; //
+}
+
+// TAU设备每秒向OMC发送的心跳状态消息
+message MsgHbLteSignal {
+  repeated LteSinal lteMod = 1; // lte模组信号状态
+}
+
+// 有线口和无线口都用这个端口状态统计
+message PortStatistics {
+  int32  index    = 1; // 端口index
+  int32  status   = 2; // 端口状态，0：down，1：up
+  uint64 rxRate   = 3; // 端口接收速率
+  uint64 txRate   = 4; // 端口发送速率
+}
+
+message Usage {
+  int32 index     = 1; // 对CPUx，DISKx,每个字对象的利用率
+  int32 usage     = 2; // 利用率 1-100
+}
+
+message Borad {
+  int32 index     = 1; // 设备单板号，每个单板是一个独立的系统
+  int32 CpuUsage  = 2; // 单个cpu的利用率不做统计，这个是总的利用率
+  int32 MemUsage  = 3; // 内存利用率
+  repeated Usage diskUsages   = 4; // 多个分区，每个分区的利用率，按照index排序
+  repeated PortStatistics portStatistics = 5; // 单板上端口速率统计
+}
+
+// 设备每15向OMC发送的心跳状态消息
+message MsgHbBoradStatus {
+  repeated Borad borads = 1; // 设备有多个单板，每个单板状态
+}
+
+// 设备每分钟上报的状态消息
+message MsgHbPerMinute {
+
+}
+
+// sta接入AP的状态【sta看到ap】，AP接入sta的状态【ap看到sta】
+message WlanLinkStatus {
+  int32  modIndex     = 1; // 模块序号
+  int32  vapIndex     = 2; // vap序号
+  int32  rsrp         = 3; // 信号强度
+  int32  rssi         = 4; // 信噪比
+  int32  rxRate       = 5; // 协商速率
+  int32  txRate       = 6; // 协商速率
+  string mac          = 7; // sta看到AP的essid-mac，AP看到sta的mac
+  string essid        = 8; // ap广播的ssid名称，sta接入的apssid名称
+}
+
+// WLAN信号每秒上报,【AP只有用户接入时才上报】
+message MsgHbWlanSignal {
+  repeated WlanLinkStatus linkStatus = 1; // sta上报是只有一个
+}
+
+// 传输文件的类型
+enum FileType {
+  Unknown      = 0; // 未知文件类型
+  Log          = 1; // 日志文件，OMC向客户端发起上传指定时间内的日志文件
+  Pcap         = 2; // 抓包文件，OMC向客户端发起上传指定时间内的通信报文文件
+  Version      = 3; // 设备向OMC发起下载版本文件
+  ConfigTar    = 4; // 设备向OMC发起下载配置文件,tar包，总配置
+  ConfigText   = 5; // 设备向OMC发起下载单个的配置文件【etc/config目录下的文件】
+}
+
+// 传输文件请求和响应消息体，传输文件采用tcp流
+message MsgFile {
+  FileType type         = 1; // 文件类型
+  string   name         = 2; // 文件名称； 若是OMC向设备发送上传日志文件，则是客户端压缩后的文件名称
+  string   nameWithPath = 3; // 带有路径的文件名称，OMC向客户端发起上传文件时，带有此参数，客户端上传到指定的路径文件
+  int64    startTime    = 4; // 针对log&pcap,目标时间段开始
+  int64    endTime      = 5; // 针对log&pcap,目标时间段结束
+  bytes    content      = 6; // 文件二进制数据
+}
+
+// 文件传输服务接口
+service FileTransport {
+  rpc GetFile(MsgFile) returns (MsgFile){}; // 请求下载文件；客户端从OMC下载版本、配置；OMC从客户端下载是通过udp接口向客户端发送上传消息；
+}
+
