@@ -70,7 +70,7 @@ message MsgHeader {
   MsgCodeType mcode   = 4;  // 消息码，与消息结构体一一对应
   ErrCodeType ecode   = 5;  // 错误吗，针对请求响应反馈响应的结果
   string      error   = 6;  // 若响应码失败，可能携带失败的原因
-  string      mac     = 7;  // 客户端->OMC的消息必须携带此参数，若客户端设备为动态IP地址，必须携带此参数标识消息包归属哪个设备
+  string      mac     = 7;  // 客户端->OMC的消息必须携带此参数，若客户端设备为动态IP地址，必须携带此参数标识消息包归属哪个设备;格式A1:B2:C3:D4:E5:F6
 }
 
 
@@ -234,10 +234,13 @@ message LteModule {
 // 单板的基本信息
 message MsgBoradInfo{
   int32  index     = 1; // 单板编号
-  string bootVer   = 2; // boot版本号
-  string kernelVer = 3; // kernel版本号
-  string FirmVer   = 4; // firmware，与discover消息中携带的设备当前运行版本一致
-  repeated LteModule lteMods = 5; // 单板上携带的LTE模组信息
+  int32  model     = 2; // 设备型号编码
+  string sn        = 3; // 主板sn
+  string desc      = 4; // 单板描述信息，硬件版本号等
+  string bootVer   = 5; // boot版本号
+  string kernelVer = 6; // kernel版本号
+  string FirmVer   = 7; // firmware，与discover消息中携带的设备当前运行版本一致
+  repeated LteModule lteMods = 8; // 单板上携带的LTE模组信息
 }
 
 // sta接入AP的状态【sta看到ap】，AP接入sta的状态【ap看到sta】
