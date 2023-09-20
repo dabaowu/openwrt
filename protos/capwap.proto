@@ -53,6 +53,7 @@ enum MsgCodeType {
   HbWlanSignal   = 11; // 客户端向OMC每秒发送空口信号质量
   HbBoradStatus  = 12; // 客户端向OMC每15秒钟发送资源利用统计消息，端口流量
   HbPerMinute    = 13; // 客户端向OMC每60秒钟发送disk资源利用率
+  BoradInfo      = 14; // 设备上线时，主动向OMC上报一次单板信息
 }
 
 // 针对查询、设置、inform消息响应结果
@@ -88,6 +89,7 @@ message Message {
   MsgHbWlanSignal    hbWlanSignal         = 11; // 客户端向OMC每秒发送空口信号质量
   MsgHbBoradStatus   hbBoradStatus        = 12; // 客户端向OMC每15秒钟发送资源利用统计消息，端口流量
   MsgHbPerMinute     hbPerMinute          = 13; // 客户端向OMC每60秒钟发送disk资源利用率
+  MsgBoradInfo       boradInfo            = 14; // 客户端在上线后，主动向OMC发送一次单板基本信息
 }
 
 // 设备上线请求消息【发现消息】,别名是请求上线，客户端以trap消息类型发送，server端不需要响应
@@ -167,12 +169,34 @@ message MsgHbLteSignal {
   repeated LteSinal lteMod = 1; // lte模组信号状态
 }
 
+enum PortType{
+  Eth       = 0; // 电口以太网
+  Sfp       = 1; // 光口以太网
+  Lte       = 2; // usb以太网口
+  WiFi      = 3; // 
+  bluetooth = 4; // 蓝牙串口
+  console   = 5; // rs232或者rs458串口
+}
+
 // 有线口和无线口都用这个端口状态统计
 message PortStatistics {
   int32  index    = 1; // 端口index
-  int32  status   = 2; // 端口状态，0：down，1：up
-  uint64 rxRate   = 3; // 端口接收速率
-  uint64 txRate   = 4; // 端口发送速率
+  int32  type     = 2; // 端口类型
+  int32  status   = 3; // 端口状态，0：down，1:10MH,2:10MF,3:100MH,4:100MF,5:1000MH,6:1000MF; H半双工，F全双工
+  uint64 rxRate   = 4; // 端口接收速率
+  uint64 txRate   = 5; // 端口发送速率
+  PortSfpArgs sfp = 6; // 若端口为光口则携带此参数
+}
+
+// 对光口的特殊参数定义
+message PortSfpArgs{
+  int32  index        = 1; // 端口index
+  int32  temperature  = 2; // 端口index
+  int32  rxPower      = 3; // 接收光功率
+  int32  txPower      = 4; // 发射光功率
+  int32  txBias       = 5; // 发射偏置电流
+  int32  vcc          = 6; // 发射器供电电压
+  
 }
 
 message Usage {
@@ -198,16 +222,35 @@ message MsgHbPerMinute {
 
 }
 
+// LTE模组基本信息
+message LteModule {
+  int32  index     = 1; // 
+  string model     = 2;
+  string version   = 3;
+  string imei      = 4;
+  string imsi      = 5;
+}
+
+// 单板的基本信息
+message MsgBoradInfo{
+  int32  index     = 1; // 单板编号
+  string bootVer   = 2; // boot版本号
+  string kernelVer = 3; // kernel版本号
+  string FirmVer   = 4; // firmware，与discover消息中携带的设备当前运行版本一致
+  repeated LteModule lteMods = 5; // 单板上携带的LTE模组信息
+}
+
 // sta接入AP的状态【sta看到ap】，AP接入sta的状态【ap看到sta】
 message WlanLinkStatus {
   int32  modIndex     = 1; // 模块序号
   int32  vapIndex     = 2; // vap序号
-  int32  rsrp         = 3; // 信号强度
-  int32  rssi         = 4; // 信噪比
-  int32  rxRate       = 5; // 协商速率
-  int32  txRate       = 6; // 协商速率
-  string mac          = 7; // sta看到AP的essid-mac，AP看到sta的mac
-  string essid        = 8; // ap广播的ssid名称，sta接入的apssid名称
+  int32  attached     = 3; // 针对STA有效，关联AP的状态； 
+  int32  rsrp         = 4; // 信号强度
+  int32  rssi         = 5; // 信噪比
+  int32  rxRate       = 6; // 协商速率
+  int32  txRate       = 7; // 协商速率
+  string mac          = 8; // sta看到AP的essid-mac，AP看到sta的mac
+  string essid        = 9; // ap广播的ssid名称，sta接入的apssid名称
 }
 
 // WLAN信号每秒上报,【AP只有用户接入时才上报】
