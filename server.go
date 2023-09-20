@@ -136,6 +136,8 @@ func (s *Server) Serve(addr ...string) error {
 					pkt.RemoteAddr = raddr
 					s.Add(1)
 					go s.h(&pkt)
+				} else {
+					slog.Error("recv data parse to Message err:", err)
 				}
 			}
 		}
