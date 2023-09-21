@@ -248,17 +248,37 @@ message WlanLinkStatus {
   int32  modIndex     = 1; // 模块序号
   int32  vapIndex     = 2; // vap序号
   int32  attached     = 3; // 针对STA有效，关联AP的状态； 
-  int32  rsrp         = 4; // 信号强度
-  int32  rssi         = 5; // 信噪比
+  int32  rsrp         = 4; // 信号强度,rssi
+  int32  sinr         = 5; // 信噪比
   int32  rxRate       = 6; // 协商速率
   int32  txRate       = 7; // 协商速率
   string mac          = 8; // sta看到AP的essid-mac，AP看到sta的mac
-  string essid        = 9; // ap广播的ssid名称，sta接入的apssid名称
+  string ssid         = 9; // ap广播的ssid名称，sta接入的apssid名称
 }
 
 // WLAN信号每秒上报,【AP只有用户接入时才上报】
 message MsgHbWlanSignal {
   repeated WlanLinkStatus linkStatus = 1; // sta上报是只有一个
+}
+
+// WiFi模块基本参数
+message WlanModuleArgs {
+  int32  index       = 1;
+  string mode        = 2; // 工作模式， 11ag，11an， 11ac， 11ax
+  string cfgChannel  = 3; // 配置自动信号还是固定信道【固定则是固定的信道号】
+  string curChannel  = 4; // 当前工作信道
+  string bandwidth   = 5; // 工作频宽
+  string txpower     = 6; // 模块当前最大射频功率【配置的功率】
+}
+
+// WiFi SSI配置信息
+message WlanSsidAargs {
+  int32  modIndex = 1; // ssid配置归属模组的编号
+  int32  index    = 2; // ssid配置在模组上属于第几个
+  int32  workMode = 3; // 工作模式，0：ap，1：sta，2：wds
+  string encrType = 4; // 加密方式
+  string encrFunc = 5; // 加密算法
+  string encrPass = 6; // 加密秘钥
 }
 
 // 传输文件的类型
