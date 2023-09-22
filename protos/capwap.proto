@@ -126,13 +126,42 @@ message MsgAlarm {
   string  sign      = 6; // 告警签名，如果inform中标识 Lan4口down， 此处表示为Lan4
 }
 
-// 配置标识，对应/etc/config目录下每个配置文件，一一映射
+// 配置标识,对应/etc/config目录下每个配置文件,为保持字段名和配置文件名一致，此处类型名称用文件名
 enum CfgTagType {
-  Globel      = 0; // 所有配置的唯一标识
-  CfgNtp      = 1; // ntp配置文件的标识
-  CfgLog      = 2; // log配置文件的标识
-  CfgPcap     = 3; // pcap配置标识
-}
+  finger        = 0; // 所有配置的唯一标识
+  cnss_diag     = 1; // 
+  ddns          = 2; // 
+  dhcp          = 3; // 
+  dhcrelay      = 4; //
+  dropbear      = 5; //
+  ecm           = 6; //
+  filedl        = 7; //
+  firewall      = 8; //
+  fstab         = 9; //
+  ipsec         = 10; //
+  luci          = 11; //
+  macsec        = 12; //
+  mcproxy       = 13; //
+  mcsd          = 14; //
+  multiwan      = 15; //
+  network       = 16; //
+  nss           = 17; //
+  pppoe         = 18; //
+  qcacfg80211   = 19; //
+  ripd          = 20; //
+  rpcd          = 21; //
+  rstp          = 22; //
+  skb_recycler  = 23; //
+  ssid_steering = 24; //
+  sysstat       = 25; //
+  system        = 26; //
+  thermal       = 27; //
+  ubootenv      = 28; //
+  ucitrack      = 29; //
+  uhttpd        = 30; //
+  upnpd         = 31; //
+  wireless      = 32; //
+}  
 
 // 配置标识、标签
 message CfgTag {
@@ -299,7 +328,8 @@ message MsgFile {
   string   nameWithPath = 3; // 带有路径的文件名称，OMC向客户端发起上传文件时，带有此参数，客户端上传到指定的路径文件
   int64    startTime    = 4; // 针对log&pcap,目标时间段开始
   int64    endTime      = 5; // 针对log&pcap,目标时间段结束
-  bytes    content      = 6; // 文件二进制数据
+  string   mac          = 6; // 设备的mac地址，针对设备拉去配置文件有效;server端依据这个信息判断是哪个设备的请求消息
+  bytes    content      = 7; // 文件二进制数据
 }
 
 // 文件传输服务接口
