@@ -329,6 +329,7 @@ message MsgFile {
   int64    startTime    = 4; // 针对log&pcap,目标时间段开始
   int64    endTime      = 5; // 针对log&pcap,目标时间段结束
   bytes    content      = 7; // 文件二进制数据
+  int32    cmd          = 8; // 针对文件为ConfigText类型有效，配置文件按照命令执行，还是copy覆盖
 }
 
 // 文件传输服务接口
