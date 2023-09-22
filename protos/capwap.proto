@@ -258,7 +258,8 @@ message WlanLinkStatus {
 
 // WLAN信号每秒上报,【AP只有用户接入时才上报】
 message MsgHbWlanSignal {
-  repeated WlanLinkStatus linkStatus = 1; // sta上报是只有一个
+  bool  isApOrSta     = 1; // 是AP[true]设备还是STA[fals]
+  repeated WlanLinkStatus linkStatus = 2; // sta上报是只有一个
 }
 
 // WiFi模块基本参数
