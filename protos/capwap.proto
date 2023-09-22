@@ -328,12 +328,11 @@ message MsgFile {
   string   nameWithPath = 3; // 带有路径的文件名称，OMC向客户端发起上传文件时，带有此参数，客户端上传到指定的路径文件
   int64    startTime    = 4; // 针对log&pcap,目标时间段开始
   int64    endTime      = 5; // 针对log&pcap,目标时间段结束
-  string   mac          = 6; // 设备的mac地址，针对设备拉去配置文件有效;server端依据这个信息判断是哪个设备的请求消息
   bytes    content      = 7; // 文件二进制数据
 }
 
 // 文件传输服务接口
 service FileTransport {
-  rpc GetFile(MsgFile) returns (MsgFile){}; // 请求下载文件；客户端从OMC下载版本、配置；OMC从客户端下载是通过udp接口向客户端发送上传消息；
+  rpc GetFile(Message) returns (MsgFile){}; // 请求下载文件；客户端从OMC下载版本、配置；OMC从客户端下载是通过udp接口向客户端发送上传消息；
 }
 

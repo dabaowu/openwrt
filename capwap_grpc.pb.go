@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type FileTransportClient interface {
-	GetFile(ctx context.Context, in *MsgFile, opts ...grpc.CallOption) (*MsgFile, error)
+	GetFile(ctx context.Context, in *Message, opts ...grpc.CallOption) (*MsgFile, error)
 }
 
 type fileTransportClient struct {
@@ -33,7 +33,7 @@ func NewFileTransportClient(cc grpc.ClientConnInterface) FileTransportClient {
 	return &fileTransportClient{cc}
 }
 
-func (c *fileTransportClient) GetFile(ctx context.Context, in *MsgFile, opts ...grpc.CallOption) (*MsgFile, error) {
+func (c *fileTransportClient) GetFile(ctx context.Context, in *Message, opts ...grpc.CallOption) (*MsgFile, error) {
 	out := new(MsgFile)
 	err := c.cc.Invoke(ctx, "/gbcom.capwap.FileTransport/GetFile", in, out, opts...)
 	if err != nil {
@@ -46,7 +46,7 @@ func (c *fileTransportClient) GetFile(ctx context.Context, in *MsgFile, opts ...
 // All implementations must embed UnimplementedFileTransportServer
 // for forward compatibility
 type FileTransportServer interface {
-	GetFile(context.Context, *MsgFile) (*MsgFile, error)
+	GetFile(context.Context, *Message) (*MsgFile, error)
 	mustEmbedUnimplementedFileTransportServer()
 }
 
@@ -54,7 +54,7 @@ type FileTransportServer interface {
 type UnimplementedFileTransportServer struct {
 }
 
-func (UnimplementedFileTransportServer) GetFile(context.Context, *MsgFile) (*MsgFile, error) {
+func (UnimplementedFileTransportServer) GetFile(context.Context, *Message) (*MsgFile, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFile not implemented")
 }
 func (UnimplementedFileTransportServer) mustEmbedUnimplementedFileTransportServer() {}
@@ -71,7 +71,7 @@ func RegisterFileTransportServer(s grpc.ServiceRegistrar, srv FileTransportServe
 }
 
 func _FileTransport_GetFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MsgFile)
+	in := new(Message)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func _FileTransport_GetFile_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/gbcom.capwap.FileTransport/GetFile",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FileTransportServer).GetFile(ctx, req.(*MsgFile))
+		return srv.(FileTransportServer).GetFile(ctx, req.(*Message))
 	}
 	return interceptor(ctx, in, info, handler)
 }
