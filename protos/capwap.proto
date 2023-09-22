@@ -249,9 +249,9 @@ message WlanLinkStatus {
   int32  vapIndex     = 2; // vap序号
   int32  attached     = 3; // 针对STA有效，关联AP的状态； 
   int32  rsrp         = 4; // 信号强度,rssi
-  int32  sinr         = 5; // 信噪比
-  int32  rxRate       = 6; // 协商速率
-  int32  txRate       = 7; // 协商速率
+  int32  nosie        = 5; // 噪声强度
+  string rxRate       = 6; // 协商速率,获取的值有参数，需要字符串类型
+  string txRate       = 7; // 协商速率,获取的值有参数
   string mac          = 8; // sta看到AP的essid-mac，AP看到sta的mac
   string ssid         = 9; // ap广播的ssid名称，sta接入的apssid名称
 }
