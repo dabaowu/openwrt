@@ -206,7 +206,7 @@ func (s *Server) h(pkt *Packet) {
 
 // 发送数据，返回响应数据[set\get\getnet的 response]
 // 如果server配置了retryCnt，接收超时[1秒]会自动重发。
-func (s *Server) Send(pkt *Packet) (res *Packet, err error) {
+func (s *Server) Send(pkt *Packet, timeout ...time.Duration) (res *Packet, err error) {
 	if pkt.Msg == nil || pkt.RemoteAddr == nil {
 		return nil, fmt.Errorf("don't be send, msg and raddr don't be nil")
 	}
@@ -216,40 +216,42 @@ func (s *Server) Send(pkt *Packet) (res *Packet, err error) {
 
 	switch pkt.Msg.Type {
 	case MsgType_SetRequest, MsgType_GetRequest, MsgType_Inform: // 发送的是请求消息，需要接收响应
-		var bs []byte
-		bs, err = proto.Marshal(pkt.Msg)
-		if err != nil {
-			return nil, err
-		}
-		retry := 0
-	labRetry:
-		err = s.conn.SetWriteDeadline(time.Now().Add(time.Second))
-		if err != nil {
-			return nil, err
-		}
-		_, err = s.conn.WriteToUDP(bs, pkt.RemoteAddr)
-		if err != nil {
-			return nil, err
-		}
-		// 发送后需要接收响应
-		if pkt.Msg.Header == nil {
-			return nil, fmt.Errorf("send successfuly, but no header")
-		}
-		rid := pkt.Msg.Header.Id
-		msg, ms := s.tc.recv(rid)
-		if msg == nil { // 接收超时（1秒），重发
-			if retry < s.retryCount {
-				retry++
-				goto labRetry
+		{
+			var bs []byte
+			bs, err = proto.Marshal(pkt.Msg)
+			if err != nil {
+				return nil, err
 			}
-			return nil, fmt.Errorf("received timeout")
+			retry := 0
+		labRetry:
+			err = s.conn.SetWriteDeadline(time.Now().Add(time.Second))
+			if err != nil {
+				return nil, err
+			}
+			_, err = s.conn.WriteToUDP(bs, pkt.RemoteAddr)
+			if err != nil {
+				return nil, err
+			}
+			// 发送后需要接收响应
+			if pkt.Msg.Header == nil {
+				return nil, fmt.Errorf("send successfuly, but no header")
+			}
+			rid := pkt.Msg.Header.Id
+			msg, ms := s.tc.recv(rid, timeout...)
+			if msg == nil { // 接收超时（1秒），重发
+				if retry < s.retryCount {
+					retry++
+					goto labRetry
+				}
+				return nil, fmt.Errorf("received timeout")
+			}
+			res = &Packet{}
+			res.Ctx = context.Background()
+			res.Msg = msg
+			res.RemoteAddr = pkt.RemoteAddr
+			pkt.setResponseTime(ms)
+			return
 		}
-		res = &Packet{}
-		res.Ctx = context.Background()
-		res.Msg = msg
-		res.RemoteAddr = pkt.RemoteAddr
-		pkt.setResponseTime(ms)
-		return
 	default: // response,trap
 		// 不需要接收响应
 		var bs []byte

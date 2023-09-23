@@ -20,7 +20,7 @@ type todo struct {
 }
 
 // 返回值是 消息和接收消息耗时
-func (o *todoCache) recv(rid uint32) (msg *Message, ms int64) {
+func (o *todoCache) recv(rid uint32, timeout ...time.Duration) (msg *Message, ms int64) {
 	o.Lock()
 	td, ok := o.m[rid]
 	if !ok {
@@ -38,7 +38,11 @@ func (o *todoCache) recv(rid uint32) (msg *Message, ms int64) {
 		o.Unlock()
 	}()
 
-	t := time.After(time.Second) // 响应超时时间为1秒
+	out := time.Second
+	if len(timeout) > 0 {
+		out = timeout[0]
+	}
+	t := time.After(out) // 响应超时时间为1秒
 	for {
 		select {
 		case msg = <-td.c:
