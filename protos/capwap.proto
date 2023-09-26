@@ -127,7 +127,7 @@ message MsgAlarm {
 }
 
 // 配置标识,对应/etc/config目录下每个配置文件,为保持字段名和配置文件名一致，此处类型名称用文件名
-enum CfgTagType {
+enum CfgFilenameType {
   finger        = 0; // 所有配置的唯一标识
   cnss_diag     = 1; // 
   ddns          = 2; // 
@@ -165,8 +165,8 @@ enum CfgTagType {
 
 // 配置标识、标签
 message CfgTag {
-  CfgTagType type  = 1; // 配置文件别名，采用enum方式避免字符输入错误
-  string     tag   = 2; // 配置文件的配置标识，tag值为空则没有此配置
+  CfgFilenameType file  = 1; // 配置文件别名，采用enum方式避免字符输入错误
+  int64           tag   = 2; // 配置文件的配置标识，tag值为空则没有此配置
 }
 
 
@@ -283,6 +283,7 @@ message WlanLinkStatus {
   string txRate       = 7; // 协商速率,获取的值有参数
   string mac          = 8; // sta看到AP的essid-mac，AP看到sta的mac
   string ssid         = 9; // ap广播的ssid名称，sta接入的apssid名称
+  int32  deriection   = 10; // 车辆行驶方向的头端、尾端，针对STA有效
 }
 
 // WLAN信号每秒上报,【AP只有用户接入时才上报】
