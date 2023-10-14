@@ -166,7 +166,7 @@ enum CfgFilenameType {
 // 配置标识、标签
 message CfgTag {
   CfgFilenameType file  = 1; // 配置文件别名，采用enum方式避免字符输入错误
-  int64           tag   = 2; // 配置文件的配置标识，tag值为空则没有此配置
+  bytes           tag   = 2; // 配置文件的配置标识，tag值为空则没有此配置
 }
 
 

@@ -55,7 +55,7 @@ func (p *Packet) GetResponseTime() (ms int64) {
 	return
 }
 
-// snmp-v2c UDP server
+// capwap UDP server
 type Server struct {
 	sync.RWMutex // 当有报文处理的go程执行时，应加锁
 	sync.WaitGroup
