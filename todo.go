@@ -43,14 +43,12 @@ func (o *todoCache) recv(rid uint32, timeout ...time.Duration) (msg *Message, ms
 		out = timeout[0]
 	}
 	t := time.After(out) // 响应超时时间为1秒
-	for {
-		select {
-		case msg = <-td.c:
-			ms = td.du
-			return
-		case <-t:
-			return nil, 0
-		}
+	select {
+	case msg = <-td.c:
+		ms = td.du
+		return
+	case <-t:
+		return nil, 0
 	}
 }
 

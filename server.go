@@ -10,8 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"log/slog"
-
+	grpc "google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -59,14 +58,21 @@ func (p *Packet) GetResponseTime() (ms int64) {
 type Server struct {
 	sync.RWMutex // 当有报文处理的go程执行时，应加锁
 	sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
-	running    int // 0:stop, 1:running, 2:closing
-	retryCount int // number of retry attempts
-	handler    func(*Packet)
-	tc         todoCache
-	conn       *net.UDPConn
-	requestid  uint32
+	ctx                              context.Context
+	cancel                           context.CancelFunc
+	running                          int // 0:stop, 1:running, 2:closing
+	retryCount                       int // number of retry attempts
+	udpHandler                       func(*Packet)
+	tc                               todoCache
+	conn                             *net.UDPConn
+	requestid                        uint32
+	UnimplementedFileTransportServer // capwap tcp传输服务
+	tcphandler                       func(ctx context.Context, in *Message) (*MsgFile, error)
+}
+
+// tcp链接获取文件
+func (s *Server) GetFile(ctx context.Context, msg *Message) (*MsgFile, error) {
+	return s.tcphandler(ctx, msg)
 }
 
 // 每个server统一维护自己的get requestID，new返回下一个可用reqid
@@ -74,25 +80,34 @@ func (s *Server) NewRequestId() uint32 {
 	return atomic.AddUint32(&s.requestid, 1)
 }
 
-// server处于阻塞监听接收网络报文处理服务
+// 启动capwap服务,后台运行;
 // 接收到snmp的reponse消息后，会将消息穿入到chan中【接收者】
-func (s *Server) Serve(addr ...string) error {
+func (s *Server) Start(addr ...string) error {
 	if s.running > 0 {
 		return fmt.Errorf("capwap udp server is running")
 	}
-	var err error
-	ip := ""
-	port := 5007
+	localAddr := ":5008"
 	if len(addr) > 0 {
-		ss := strings.Split(addr[0], ":")
-		if len(ss) == 2 {
+		localAddr = addr[0]
+	}
+	go s.servUdp(localAddr)
+	go s.servTcp(localAddr)
+	return nil
+}
+func (s *Server) servUdp(addr string) error {
+	var err error
+	ip := "0.0.0.0"
+	port := 5008
+	ss := strings.Split(addr, ":")
+	if len(ss) > 2 {
+		if len(ss[0]) > 7 {
 			ip = ss[0]
-			port, _ = strconv.Atoi(ss[1])
-			if port < 1 || port > 65534 {
-				port = 5007
-			}
+		}
+		if p, err := strconv.Atoi(ss[1]); err == nil {
+			port = p
 		}
 	}
+
 	s.conn, err = net.ListenUDP("udp", &net.UDPAddr{
 		IP:   net.ParseIP(ip),
 		Port: port,
@@ -100,10 +115,7 @@ func (s *Server) Serve(addr ...string) error {
 	if err != nil {
 		return err
 	}
-	if ip == "" { // 日志输出显示
-		ip = "[::]"
-	}
-	slog.Debug("capwap server listening on  %s:%d", ip, port)
+	logger.Info("capwap server listening on  %s:%d", ip, port)
 	// 服务启动时创建上下文，控制服务退出
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.running = 1
@@ -121,7 +133,7 @@ func (s *Server) Serve(addr ...string) error {
 			if err != nil {
 				continue
 			}
-			if err == nil && n > 0 {
+			if n > 0 {
 				msg := &Message{}
 				err := proto.Unmarshal(buf[:n], msg)
 				if err == nil {
@@ -137,11 +149,33 @@ func (s *Server) Serve(addr ...string) error {
 					s.Add(1)
 					go s.h(&pkt)
 				} else {
-					slog.Error("recv data parse to Message err:", err)
+					logger.Error("recv data parse to Message err:", err)
 				}
 			}
 		}
 	}
+}
+func (s *Server) servTcp(addr string) error {
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		logger.Error("failed to listen: %v", err)
+		return err
+	}
+	maxSize := 100 * 1024 * 1024 // 设置最大传输数据，默认是4MB，需要修改
+	rpc := grpc.NewServer(
+		grpc.MaxRecvMsgSize(maxSize),
+		grpc.MaxSendMsgSize(maxSize),
+	)
+	// s := grpc.NewServer()
+	// 注册 User 模块
+	RegisterFileTransportServer(rpc, s)
+
+	logger.Info("capwap tcp server listening on %v", lis.Addr())
+	if err := rpc.Serve(lis); err != nil {
+		logger.Error("failed to serve[capwap.tcp]: %v", err)
+		return err
+	}
+	return nil
 }
 
 // 停止server的服务状态
@@ -152,7 +186,6 @@ func (s *Server) Stop() error {
 	if s.running == 2 {
 		return fmt.Errorf("udp server is closing")
 	}
-	slog.Debug("user manually stopped")
 	s.cancel()
 	s.running = 2 // 服务状态，关闭中
 	s.Wait()
@@ -168,8 +201,7 @@ func (s *Server) IsRunning() bool {
 // 调用注入的处理函数,设置执行超时
 func (s *Server) h(pkt *Packet) {
 	defer s.Done()
-	if s.handler == nil {
-		slog.Error("snmp trap server have not assign handler")
+	if s.udpHandler == nil {
 		return
 	}
 
@@ -185,18 +217,13 @@ func (s *Server) h(pkt *Packet) {
 	// 异步执行任务
 	c := make(chan struct{}, 1)
 	go func() {
-		s.handler(pkt)
+		s.udpHandler(pkt)
 		c <- struct{}{}
 	}()
 	// 等待任务退出，或者超时退出
 	for {
 		select {
 		case <-ctx.Done():
-			raddr := ""
-			if pkt.RemoteAddr != nil {
-				raddr = pkt.RemoteAddr.String()
-			}
-			slog.Warn("trap server handle msg-pkt timeout, msg.type=%v,raddr=%v", pkt.Msg.Type, raddr)
 			return
 		case <-c:
 			return
@@ -269,11 +296,13 @@ func (s *Server) Send(pkt *Packet, timeout ...time.Duration) (res *Packet, err e
 }
 
 // 返回一个新的，初始化的serverr
-func NewServer(h func(pkt *Packet)) *Server {
+func NewServer(udpHandler func(pkt *Packet),
+	tcpHandler func(ctx context.Context, in *Message) (*MsgFile, error)) *Server {
 	s := Server{}
 	s.tc = todoCache{}
 	s.tc.m = make(map[uint32]*todo)
-	s.handler = h
+	s.udpHandler = udpHandler
+	s.tcphandler = tcpHandler
 	return &s
 }
 

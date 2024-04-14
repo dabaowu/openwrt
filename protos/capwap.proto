@@ -25,30 +25,31 @@ option go_package = "./capwap";
 
 // 消息码厂商，或者厂商自定义模块
 enum VendorType {
-  Gbcom      = 0;
+  Unknownx   = 0;
+  Gbcom      = 1;
 }
 
 // 消息类型
 enum MsgType {
   Response   = 0; // get/set/inform.request response
   GetRequest = 1; // 查询请求，返回响应
-  SetRequest = 2; // 设置设置，返回响应
+  SetRequest = 2; // 设置设置，返回响应, 通常用于server段主动向客户端发消息, 让客户端执行某个动作或者发起tcp连接拉去文件
   Trap       = 3; // 客户端向server端，trap.request, server不需要响应
   Inform     = 4; // 客户端向server端，inform.request, server需要响应
 }
 
 // 消息代码,消息中携带的有效消息类型
 enum MsgCodeType {
-  Invailed       = 0;
+  Invailed       = 0; // 无效消息类型
   Reboot         = 1; // omc对设备设置重启
   Alarm          = 2; // 设备向omc发送告警
   Discover       = 3; // 设备向omc发送发现消息【上线请求】
   OnlineStatus   = 4; // omc向设备发送设置上线状态，客户端回应上线状态
   Keepalive      = 5; // 客户端向server端发送的保活消息
-  Cfgtags        = 6; // 客户端向server端发送的查询配置标签消息，server端需要给响应
-  VersionUpgrade = 7; // OMC向客户端方发送需要执行升级到目标版本，并重启, MC向客户端发送的消息携带MsgFile
-  ConfigUpgrade  = 8; // OMC向客户端方发送需要同步整体配置，并重启, OMC向客户端发送的消息携带MsgFile
-  ConfigUpload   = 9; // OMC上没有设备配置文件，设备首次上线时必须上传配置文件，OMC上保留备份; OMC向客户端发送的消息携带MsgFile
+  CfgFilesHash   = 6; // 客户端向server端发送的查询配置标签消息，server端需要给响应
+  VersionUpgrade = 7; // OMC向客户端方发送需要执行升级到目标版本，并重启, OMC向客户端发送的消息携带MsgFile
+  GetCfgFile     = 8; // 客户端从OMC拉取配置文件[/etc/config/filename] OMC向客户端发送的消息携带MsgFile
+  PutCfgFile     = 9; // 客户端向OMC上传配置文件，设备首次上线时必须上传配置文件，OMC上保留备份; OMC向客户端发送的消息携带MsgFile
   HbLteSignal    = 10; // 客户端向OMC每秒发送空口信号质量
   HbWlanSignal   = 11; // 客户端向OMC每秒发送空口信号质量
   HbBoradStatus  = 12; // 客户端向OMC每15秒钟发送资源利用统计消息，端口流量
@@ -65,7 +66,7 @@ enum ErrCodeType {
 // 请求消息的头部
 message MsgHeader {
   int32       version = 1; // 消息协议版本号，暂不是使用;hdr中增加了verdor,消息定义需要改变通过字段修订，version预留为整个消息包全新定义
-  uint32      id      = 2; // 消息包ID号，唯一【一个设备主动发出的消息包，ID自增、唯一】
+  uint32      id      = 2; // 消息包ID号【一个设备主动发出的消息包，ID自增、唯一】
   VendorType  vendor  = 3;  // 厂商，不同的厂商对消息码可以重新定义【mcode对应的消息结构体】
   MsgCodeType mcode   = 4;  // 消息码，与消息结构体一一对应
   ErrCodeType ecode   = 5;  // 错误吗，针对请求响应反馈响应的结果
@@ -82,7 +83,7 @@ message Message {
   MsgDiscover        discover             = 4; // 发现消息
   MsgOnline          onlineStatus         = 5; // omc->设置客户端上线消息，客户端->响应上线消息
   MsgKeepalive       keepalive            = 6; // 客户端向OMC端发送的保活消息
-  MsgCfgtags         cfgtags              = 7; // 客户端向OMC端发送的查询配置标签消息，OMC端需要给响应; 客户端通过心跳消息主动检查配置同步
+  MsgCfgFiles        cfgFiles             = 7; // 客户端向OMC端发送的查询配置标签消息，OMC端需要给响应; 客户端通过心跳消息主动检查配置同步
   MsgFile            versionUpgrade       = 8; // OMC向客户端方发送需要执行升级到目标版本，并重启; OMC主动发起的强制客户端升级; 正常运维模式不会有此流程
   MsgFile            configUpgrade        = 9; // OMC向客户端方发送需要同步整体配置，并重启; OMC主动泛起的强制客户端整体配置同步; 正常运维模式不会有此流程
   MsgHbLteSignal     hbLteSignal          = 10; // 客户端向OMC每秒发送空口信号质量
@@ -119,67 +120,38 @@ message MsgOnline{
 // 告警消息
 message MsgAlarm {
   string  sn        = 1; // 告警序列号
-  int32   timestamp = 2; // 告警时间戳，发生时间
+  uint32  timestamp = 2; // 告警时间戳，发生时间戳
   int32   code      = 3; // 告警码
   int32   stat      = 4; // 告警类型，0：事件，1：告警产生，2：告警消除
   string  info      = 5; // 告警消息
   string  sign      = 6; // 告警签名，如果inform中标识 Lan4口down， 此处表示为Lan4
 }
 
-// 配置标识,对应/etc/config目录下每个配置文件,为保持字段名和配置文件名一致，此处类型名称用文件名
-enum CfgFilenameType {
-  finger        = 0; // 所有配置的唯一标识
-  cnss_diag     = 1; // 
-  ddns          = 2; // 
-  dhcp          = 3; // 
-  dhcrelay      = 4; //
-  dropbear      = 5; //
-  ecm           = 6; //
-  filedl        = 7; //
-  firewall      = 8; //
-  fstab         = 9; //
-  ipsec         = 10; //
-  luci          = 11; //
-  macsec        = 12; //
-  mcproxy       = 13; //
-  mcsd          = 14; //
-  multiwan      = 15; //
-  network       = 16; //
-  nss           = 17; //
-  pppoe         = 18; //
-  qcacfg80211   = 19; //
-  ripd          = 20; //
-  rpcd          = 21; //
-  rstp          = 22; //
-  skb_recycler  = 23; //
-  ssid_steering = 24; //
-  sysstat       = 25; //
-  system        = 26; //
-  thermal       = 27; //
-  ubootenv      = 28; //
-  ucitrack      = 29; //
-  uhttpd        = 30; //
-  upnpd         = 31; //
-  wireless      = 32; //
-}  
 
-// 配置标识、标签
-message CfgTag {
-  CfgFilenameType file  = 1; // 配置文件别名，采用enum方式避免字符输入错误
-  bytes           tag   = 2; // 配置文件的配置标识，tag值为空则没有此配置
+
+// 表示配置文件和版本文件;
+// 版本文件时hash值无效
+message CfgFile {
+  string serHash   = 1; // server端存储publish的contant的md5 hash值
+  string cliHash   = 2; // server端暂存客户端配置文件内容的hash码
+  bool   needSync  = 3; // server端响应客户端是否需要同步此文件
+  string name      = 4; // 配置文件别名，包含路径的全名, 例: /etc/config/filename
+  bytes  content   = 5; // 配置文件的配置标识，tag值为空则没有此配置
 }
 
 
 // 客户端向服务器发送的心跳消息; OMC向客户端应答该消息
 message MsgKeepalive {
-  int64    uptime      = 1; // 系统上电运行工作时长,单位秒
+  uint32   uptime      = 1; // 系统上电运行工作时长,单位秒
   string   version     = 2; // 设备端正在运行的版本，通过心跳检查及时触发升级
-  CfgTag   CftTag      = 3; // 客户端的配置标识，服务器端记录是否告警【主动判断】,客户端只上传globel一条消息，server端响应上根据server端的值更新此消息
+  string   totalHash   = 3; // 客户端所有配置文件按照文件名排序的hash码拼接后重新生成的hash值,标识设备配置唯一
 }
 
-// 客户端通过心跳消息判断与server端配置tag不一致，触发查询哪个配置文件不一致，并拉去配置文件更新配置
-message MsgCfgtags {
-  repeated CfgTag tags = 1; // 查询哪个文件
+// 客户端通过心跳消息判断与server端配置hash不一致，触发查询哪个配置文件不一致，并拉去配置文件更新配置;
+// 通过udp接口拉取文件时只包含配置文件名和hash值[客户端用于检查每个配置文件是否与服务端一致], 不包括文件内容[contant];
+// 通过tcp接口上传或者拉取文件时,应包含文件内容
+message MsgCfgFiles {
+  repeated CfgFile files = 1; // 查询哪个文件
 }
 
 // Lte信号质量
@@ -187,9 +159,9 @@ message LteSinal {
   int32  index    = 1; // LTE模块ID编号
   int32  attached = 2; // 驻网状态
   int32  pcid     = 3; // 接入的PCI
-  int32  rsrp     = 4; // 
+  int32  rsrp     = 4; //
   int32  rsrq     = 5; //
-  int32  rssi     = 6; // 
+  int32  rssi     = 6; //
   int32  sinr     = 7; //
 }
 
@@ -202,7 +174,7 @@ enum PortType{
   Eth       = 0; // 电口以太网
   Sfp       = 1; // 光口以太网
   Lte       = 2; // usb以太网口
-  WiFi      = 3; // 
+  WiFi      = 3; //
   bluetooth = 4; // 蓝牙串口
   console   = 5; // rs232或者rs458串口
 }
@@ -225,7 +197,7 @@ message PortSfpArgs{
   int32  txPower      = 4; // 发射光功率
   int32  txBias       = 5; // 发射偏置电流
   int32  vcc          = 6; // 发射器供电电压
-  
+
 }
 
 message Usage {
@@ -253,7 +225,7 @@ message MsgHbPerMinute {
 
 // LTE模组基本信息
 message LteModule {
-  int32  index     = 1; // 
+  int32  index     = 1; //
   string model     = 2;
   string version   = 3;
   string imei      = 4;
@@ -276,9 +248,9 @@ message MsgBoradInfo{
 message WlanLinkStatus {
   int32  modIndex     = 1; // 模块序号
   int32  vapIndex     = 2; // vap序号
-  int32  attached     = 3; // 针对STA有效，关联AP的状态； 
+  int32  attached     = 3; // 针对STA有效，关联AP的状态；
   int32  rsrp         = 4; // 信号强度,rssi
-  int32  nosie        = 5; // 噪声强度
+  int32  noise        = 5; // 噪声强度
   string rxRate       = 6; // 协商速率,获取的值有参数，需要字符串类型
   string txRate       = 7; // 协商速率,获取的值有参数
   string mac          = 8; // sta看到AP的essid-mac，AP看到sta的mac
@@ -322,7 +294,8 @@ enum FileType {
   ConfigText   = 5; // 设备向OMC发起下载单个的配置文件【etc/config目录下的文件】
 }
 
-// 传输文件请求和响应消息体，传输文件采用tcp流
+// 传输文件请求和响应消息体，传输文件采用tcp流;
+// 服务端的版本文件,客户端的日志和抓包文件
 message MsgFile {
   FileType type         = 1; // 文件类型
   string   name         = 2; // 文件名称； 若是OMC向设备发送上传日志文件，则是客户端压缩后的文件名称
@@ -337,4 +310,3 @@ message MsgFile {
 service FileTransport {
   rpc GetFile(Message) returns (MsgFile){}; // 请求下载文件；客户端从OMC下载版本、配置；OMC从客户端下载是通过udp接口向客户端发送上传消息；
 }
-
