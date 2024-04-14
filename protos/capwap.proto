@@ -309,4 +309,5 @@ message MsgFile {
 // 文件传输服务接口
 service FileTransport {
   rpc GetFile(Message) returns (MsgFile){}; // 请求下载文件；客户端从OMC下载版本、配置；OMC从客户端下载是通过udp接口向客户端发送上传消息；
+  rpc PutFile(MsgFile) returns (Message){}; // 客户端向omc上传文件
 }

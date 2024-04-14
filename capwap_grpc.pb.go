@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type FileTransportClient interface {
 	GetFile(ctx context.Context, in *Message, opts ...grpc.CallOption) (*MsgFile, error)
+	PutFile(ctx context.Context, in *MsgFile, opts ...grpc.CallOption) (*Message, error)
 }
 
 type fileTransportClient struct {
@@ -42,11 +43,21 @@ func (c *fileTransportClient) GetFile(ctx context.Context, in *Message, opts ...
 	return out, nil
 }
 
+func (c *fileTransportClient) PutFile(ctx context.Context, in *MsgFile, opts ...grpc.CallOption) (*Message, error) {
+	out := new(Message)
+	err := c.cc.Invoke(ctx, "/gbcom.capwap.FileTransport/PutFile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FileTransportServer is the server API for FileTransport service.
 // All implementations must embed UnimplementedFileTransportServer
 // for forward compatibility
 type FileTransportServer interface {
 	GetFile(context.Context, *Message) (*MsgFile, error)
+	PutFile(context.Context, *MsgFile) (*Message, error)
 	mustEmbedUnimplementedFileTransportServer()
 }
 
@@ -56,6 +67,9 @@ type UnimplementedFileTransportServer struct {
 
 func (UnimplementedFileTransportServer) GetFile(context.Context, *Message) (*MsgFile, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFile not implemented")
+}
+func (UnimplementedFileTransportServer) PutFile(context.Context, *MsgFile) (*Message, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutFile not implemented")
 }
 func (UnimplementedFileTransportServer) mustEmbedUnimplementedFileTransportServer() {}
 
@@ -88,6 +102,24 @@ func _FileTransport_GetFile_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileTransport_PutFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgFile)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileTransportServer).PutFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gbcom.capwap.FileTransport/PutFile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileTransportServer).PutFile(ctx, req.(*MsgFile))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FileTransport_ServiceDesc is the grpc.ServiceDesc for FileTransport service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -98,6 +130,10 @@ var FileTransport_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFile",
 			Handler:    _FileTransport_GetFile_Handler,
+		},
+		{
+			MethodName: "PutFile",
+			Handler:    _FileTransport_PutFile_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
