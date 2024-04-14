@@ -67,12 +67,18 @@ type Server struct {
 	conn                             *net.UDPConn
 	requestid                        uint32
 	UnimplementedFileTransportServer // capwap tcp传输服务
-	tcphandler                       func(ctx context.Context, in *Message) (*MsgFile, error)
+	tcphandlerGet                    func(ctx context.Context, in *Message) (*MsgFile, error)
+	tcphandlerPut                    func(ctx context.Context, in *MsgFile) (*Message, error)
 }
 
 // tcp链接获取文件
 func (s *Server) GetFile(ctx context.Context, msg *Message) (*MsgFile, error) {
-	return s.tcphandler(ctx, msg)
+	return s.tcphandlerGet(ctx, msg)
+}
+
+// tcp链接获取文件
+func (s *Server) PetFile(ctx context.Context, file *MsgFile) (*Message, error) {
+	return s.tcphandlerPut(ctx, file)
 }
 
 // 每个server统一维护自己的get requestID，new返回下一个可用reqid
@@ -297,12 +303,14 @@ func (s *Server) Send(pkt *Packet, timeout ...time.Duration) (res *Packet, err e
 
 // 返回一个新的，初始化的serverr
 func NewServer(udpHandler func(pkt *Packet),
-	tcpHandler func(ctx context.Context, in *Message) (*MsgFile, error)) *Server {
+	tcpGetHandler func(ctx context.Context, in *Message) (*MsgFile, error),
+	tcpPutHandler func(ctx context.Context, in *MsgFile) (*Message, error)) *Server {
 	s := Server{}
 	s.tc = todoCache{}
 	s.tc.m = make(map[uint32]*todo)
 	s.udpHandler = udpHandler
-	s.tcphandler = tcpHandler
+	s.tcphandlerGet = tcpGetHandler
+	s.tcphandlerPut = tcpPutHandler
 	return &s
 }
 
