@@ -67,18 +67,18 @@ type Server struct {
 	conn                             *net.UDPConn
 	requestid                        uint32
 	UnimplementedFileTransportServer // capwap tcp传输服务
-	tcphandlerGet                    func(ctx context.Context, in *Message) (*MsgFile, error)
-	tcphandlerPut                    func(ctx context.Context, in *MsgFile) (*Message, error)
+	tcphandlerGet                    func(ctx context.Context, in *Message) (*Message, error)
+	tcphandlerPut                    func(ctx context.Context, in *Message) (*Message, error)
 }
 
 // tcp链接获取文件
-func (s *Server) GetFile(ctx context.Context, msg *Message) (*MsgFile, error) {
+func (s *Server) GetFile(ctx context.Context, msg *Message) (*Message, error) {
 	return s.tcphandlerGet(ctx, msg)
 }
 
 // tcp链接获取文件
-func (s *Server) PetFile(ctx context.Context, file *MsgFile) (*Message, error) {
-	return s.tcphandlerPut(ctx, file)
+func (s *Server) PutFile(ctx context.Context, msg *Message) (*Message, error) {
+	return s.tcphandlerPut(ctx, msg)
 }
 
 // 每个server统一维护自己的get requestID，new返回下一个可用reqid
@@ -172,7 +172,6 @@ func (s *Server) servTcp(addr string) error {
 		grpc.MaxRecvMsgSize(maxSize),
 		grpc.MaxSendMsgSize(maxSize),
 	)
-	// s := grpc.NewServer()
 	// 注册 User 模块
 	RegisterFileTransportServer(rpc, s)
 
@@ -303,8 +302,8 @@ func (s *Server) Send(pkt *Packet, timeout ...time.Duration) (res *Packet, err e
 
 // 返回一个新的，初始化的serverr
 func NewServer(udpHandler func(pkt *Packet),
-	tcpGetHandler func(ctx context.Context, in *Message) (*MsgFile, error),
-	tcpPutHandler func(ctx context.Context, in *MsgFile) (*Message, error)) *Server {
+	tcpGetHandler func(ctx context.Context, in *Message) (*Message, error),
+	tcpPutHandler func(ctx context.Context, in *Message) (*Message, error)) *Server {
 	s := Server{}
 	s.tc = todoCache{}
 	s.tc.m = make(map[uint32]*todo)

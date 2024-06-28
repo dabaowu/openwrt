@@ -41,20 +41,20 @@ enum MsgType {
 // 消息代码,消息中携带的有效消息类型
 enum MsgCodeType {
   Invailed       = 0; // 无效消息类型
-  Reboot         = 1; // omc对设备设置重启
-  Alarm          = 2; // 设备向omc发送告警
-  Discover       = 3; // 设备向omc发送发现消息【上线请求】
-  OnlineStatus   = 4; // omc向设备发送设置上线状态，客户端回应上线状态
+  Command        = 1; // AC向设备发送命令操作
+  Alarm          = 2; // 设备向AC发送告警
+  Discover       = 3; // 设备向AC发送发现消息【上线请求】
+  OnlineStatus   = 4; // AC向设备发送设置上线状态，客户端回应上线状态
   Keepalive      = 5; // 客户端向server端发送的保活消息
-  CfgFilesHash   = 6; // 客户端向server端发送的查询配置标签消息，server端需要给响应
-  VersionUpgrade = 7; // OMC向客户端方发送需要执行升级到目标版本，并重启, OMC向客户端发送的消息携带MsgFile
-  GetCfgFile     = 8; // 客户端从OMC拉取配置文件[/etc/config/filename] OMC向客户端发送的消息携带MsgFile
-  PutCfgFile     = 9; // 客户端向OMC上传配置文件，设备首次上线时必须上传配置文件，OMC上保留备份; OMC向客户端发送的消息携带MsgFile
-  HbLteSignal    = 10; // 客户端向OMC每秒发送空口信号质量
-  HbWlanSignal   = 11; // 客户端向OMC每秒发送空口信号质量
-  HbBoradStatus  = 12; // 客户端向OMC每15秒钟发送资源利用统计消息，端口流量
-  HbPerMinute    = 13; // 客户端向OMC每60秒钟发送disk资源利用率
-  BoradInfo      = 14; // 设备上线时，主动向OMC上报一次单板信息
+  CfgAndVerTag   = 6; // 客户端5分钟向AC发送配置和版本同步检查
+  GetVersionFile = 7; // AC向客户端方发送需要执行升级到目标版本，并重启, AC向客户端发送的消息
+  GetCfgFiles    = 8; // 客户端向server端拉取所有的配置文件信息
+  PutCfgFiles    = 9; // 客户端向AC上传配置文件[/etc/config/filename] AC向客户端发送的消息
+  PullFile       = 10; // AC[AC]向客户端发送拉取文件请求,UDP发送
+  PushFile       = 11; // 客户端向AC发送[被拉取的文件] tcp
+  HbBoradStatus  = 12; // 客户端向AC每15秒钟发送资源利用统计消息，端口流量
+  HbPerMinute    = 13; // 客户端向AC每60秒钟发送disk资源利用率
+  BoradInfo      = 14; // 设备上线时，主动向AC上报一次单板信息
 }
 
 // 针对查询、设置、inform消息响应结果
@@ -71,26 +71,34 @@ message MsgHeader {
   MsgCodeType mcode   = 4;  // 消息码，与消息结构体一一对应
   ErrCodeType ecode   = 5;  // 错误吗，针对请求响应反馈响应的结果
   string      error   = 6;  // 若响应码失败，可能携带失败的原因
-  string      mac     = 7;  // 客户端->OMC的消息必须携带此参数，若客户端设备为动态IP地址，必须携带此参数标识消息包归属哪个设备;格式A1:B2:C3:D4:E5:F6
+  string      mac     = 7;  // 客户端->AC的消息必须携带此参数，若客户端设备为动态IP地址，必须携带此参数标识消息包归属哪个设备;格式A1:B2:C3:D4:E5:F6
 }
 
 
-// OMC与设备之间通信的数据消息体结构
+// AC与设备之间通信的数据消息体结构
 message Message {
-  MsgType            type                 = 1; // 消息类型
-  MsgHeader          header               = 2; // 请求消息头部
-  MsgAlarm           alarm                = 3; // 告警消息
-  MsgDiscover        discover             = 4; // 发现消息
-  MsgOnline          onlineStatus         = 5; // omc->设置客户端上线消息，客户端->响应上线消息
-  MsgKeepalive       keepalive            = 6; // 客户端向OMC端发送的保活消息
-  MsgCfgFiles        cfgFiles             = 7; // 客户端向OMC端发送的查询配置标签消息，OMC端需要给响应; 客户端通过心跳消息主动检查配置同步
-  MsgFile            versionUpgrade       = 8; // OMC向客户端方发送需要执行升级到目标版本，并重启; OMC主动发起的强制客户端升级; 正常运维模式不会有此流程
-  MsgFile            configUpgrade        = 9; // OMC向客户端方发送需要同步整体配置，并重启; OMC主动泛起的强制客户端整体配置同步; 正常运维模式不会有此流程
-  MsgHbLteSignal     hbLteSignal          = 10; // 客户端向OMC每秒发送空口信号质量
-  MsgHbWlanSignal    hbWlanSignal         = 11; // 客户端向OMC每秒发送空口信号质量
-  MsgHbBoradStatus   hbBoradStatus        = 12; // 客户端向OMC每15秒钟发送资源利用统计消息，端口流量
-  MsgHbPerMinute     hbPerMinute          = 13; // 客户端向OMC每60秒钟发送disk资源利用率
-  MsgBoradInfo       boradInfo            = 14; // 客户端在上线后，主动向OMC发送一次单板基本信息
+  MsgType            type                 = 1; // 消息类型   必须包含
+  MsgHeader          header               = 2; // 请求消息头部   必须包含, header以下为消息体根据header.mcode确认包含哪个消息
+  MsgCommand         command              = 3; // 消息: 命令
+  MsgAlarm           alarm                = 4; // 消息: 告警消息
+  MsgDiscover        discover             = 5; // 消息: 发现消息
+  MsgOnline          onlineStatus         = 6; // AC->设置客户端上线消息，客户端->响应上线消息; 
+  MsgKeepalive       keepalive            = 7; // 客户端向AC端发送的保活消息
+  MsgCfgAndVerTag    cfgAndVerTag         = 8; // 客户端没5分钟向AC发送一次配置和版本检查
+  MsgFile            getVersionFile       = 9; // AC向客户端方发送需要执行升级到目标版本，并重启; AC主动发起的强制客户端升级; 正常运维模式不会有此流程
+  MsgCfgFiles        getCfgFiles          = 10; // 客户端向AC端发送的查询配置标签消息，AC端需要给响应; 客户端通过心跳消息主动检查配置同步
+  MsgCfgFiles        putCfgFiles          = 11; // AC向客户端方发送需要同步整体配置，并重启; AC主动泛起的强制客户端整体配置同步; 正常运维模式不会有此流程
+  MsgFile            PullFile             = 12; // AC向客户端拉取文件消息
+  MsgFile            PushFile             = 13; // 客户端接收到pullfile信号后tcp向AC发送文件   
+  MsgHbBoradStatus   hbBoradStatus        = 14; // 客户端向AC每60秒钟发送资源利用统计消息，端口流量
+  MsgBoradInfo       boradInfo            = 15; // 客户端在上线后，主动向AC发送一次单板基本信息
+}
+
+// AC向客户端发送执行命令消息, 客户端执行命令并反馈执行结果
+message MsgCommand {
+  string cmd    = 1; // 命令
+  string agrs   = 2; // 参数
+  string result = 3; // 命令执行的结果
 }
 
 // 设备上线请求消息【发现消息】,别名是请求上线，客户端以trap消息类型发送，server端不需要响应
@@ -120,7 +128,7 @@ message MsgOnline{
 // 告警消息
 message MsgAlarm {
   string  sn        = 1; // 告警序列号
-  uint32  timestamp = 2; // 告警时间戳，发生时间戳
+  uint32  timestamp = 2; // 告警时间戳，发生时间戳, utc, 秒
   int32   code      = 3; // 告警码
   int32   stat      = 4; // 告警类型，0：事件，1：告警产生，2：告警消除
   string  info      = 5; // 告警消息
@@ -132,19 +140,29 @@ message MsgAlarm {
 // 表示配置文件和版本文件;
 // 版本文件时hash值无效
 message CfgFile {
-  string serHash   = 1; // server端存储publish的contant的md5 hash值
-  string cliHash   = 2; // server端暂存客户端配置文件内容的hash码
+  uint64 serHash   = 1; // server端存储publish的contant的md5 hash值
+  uint64 cliHash   = 2; // server端暂存客户端配置文件内容的hash码
   bool   needSync  = 3; // server端响应客户端是否需要同步此文件
   string name      = 4; // 配置文件别名，包含路径的全名, 例: /etc/config/filename
   bytes  content   = 5; // 配置文件的配置标识，tag值为空则没有此配置
 }
 
 
-// 客户端向服务器发送的心跳消息; OMC向客户端应答该消息
+// 客户端向服务器发送的心跳消息; AC向客户端应答该消息, 每10秒一次, 客户端没有接收到应道则设置离线[停止发送无线信号];
+// AP/MR设备值报告wlan信号; tau设备包含lte信号
 message MsgKeepalive {
-  uint32   uptime      = 1; // 系统上电运行工作时长,单位秒
-  string   version     = 2; // 设备端正在运行的版本，通过心跳检查及时触发升级
-  string   totalHash   = 3; // 客户端所有配置文件按照文件名排序的hash码拼接后重新生成的hash值,标识设备配置唯一
+  uint32        uptime        = 1; // 系统上电运行工作时长,单位秒
+  HbLteSignal   hbLteSignal   = 2; // 客户端向AC每秒发送空口信号质量
+  HbWlanSignal  hbWlanSignal  = 3; // 客户端向AC每秒发送空口信号质量
+}
+
+// 客户端向服务器发送当前配置和版本; AC向客户端应答该消息; 客户端根据应答检查配置和版本是否需要同步;每5分钟一次
+message MsgCfgAndVerTag {
+  uint64   currHash    = 1; // 客户端所有配置文件按照文件名排序的hash码拼接后重新生成的hash值,标识设备配置唯一, 客户端请求时填充
+  string   version     = 2; // 设备端正在运行的版本，通过心跳检查及时触发升级; 客户端请求填充, AC应答时更新
+  bool     verUpdate   = 3; // 服务端是否许可客户端执行升级, AC应答时填充,
+  uint64   serverHash  = 4; // 服务端储存且已发布所有配置文件的hash值, AC应答是填充
+  uint64   clientHash  = 5; // 服务端存储客户端的所有配置文件的hash值, AC应答是填充
 }
 
 // 客户端通过心跳消息判断与server端配置hash不一致，触发查询哪个配置文件不一致，并拉去配置文件更新配置;
@@ -165,8 +183,8 @@ message LteSinal {
   int32  sinr     = 7; //
 }
 
-// TAU设备每秒向OMC发送的心跳状态消息
-message MsgHbLteSignal {
+// TAU设备每秒向AC发送的心跳状态消息
+message HbLteSignal {
   repeated LteSinal lteMod = 1; // lte模组信号状态
 }
 
@@ -213,14 +231,9 @@ message Borad {
   repeated PortStatistics portStatistics = 5; // 单板上端口速率统计
 }
 
-// 设备每15向OMC发送的心跳状态消息
+// 设备每15向AC发送的心跳状态消息
 message MsgHbBoradStatus {
   repeated Borad borads = 1; // 设备有多个单板，每个单板状态
-}
-
-// 设备每分钟上报的状态消息
-message MsgHbPerMinute {
-
 }
 
 // LTE模组基本信息
@@ -259,8 +272,8 @@ message WlanLinkStatus {
 }
 
 // WLAN信号每秒上报,【AP只有用户接入时才上报】
-message MsgHbWlanSignal {
-  bool  isApOrSta     = 1; // 是AP[true]设备还是STA[fals]
+message HbWlanSignal {
+  bool  isAp     = 1; // 是AP[true]设备还是STA[false]
   repeated WlanLinkStatus linkStatus = 2; // sta上报是只有一个
 }
 
@@ -287,19 +300,19 @@ message WlanSsidAargs {
 // 传输文件的类型
 enum FileType {
   Unknown      = 0; // 未知文件类型
-  Log          = 1; // 日志文件，OMC向客户端发起上传指定时间内的日志文件
-  Pcap         = 2; // 抓包文件，OMC向客户端发起上传指定时间内的通信报文文件
-  Version      = 3; // 设备向OMC发起下载版本文件
-  ConfigTar    = 4; // 设备向OMC发起下载配置文件,tar包，总配置
-  ConfigText   = 5; // 设备向OMC发起下载单个的配置文件【etc/config目录下的文件】
+  Log          = 1; // 日志文件，AC向客户端发起上传指定时间内的日志文件
+  Pcap         = 2; // 抓包文件，AC向客户端发起上传指定时间内的通信报文文件
+  Version      = 3; // 设备向AC发起下载版本文件
+  ConfigTar    = 4; // 设备向AC发起下载配置文件,tar包，总配置
+  ConfigText   = 5; // 设备向AC发起下载单个的配置文件【etc/config目录下的文件】
 }
 
 // 传输文件请求和响应消息体，传输文件采用tcp流;
 // 服务端的版本文件,客户端的日志和抓包文件
 message MsgFile {
   FileType type         = 1; // 文件类型
-  string   name         = 2; // 文件名称； 若是OMC向设备发送上传日志文件，则是客户端压缩后的文件名称
-  string   nameWithPath = 3; // 带有路径的文件名称，OMC向客户端发起上传文件时，带有此参数，客户端上传到指定的路径文件
+  string   name         = 2; // 文件名称； 若是AC向设备发送上传日志文件，则是客户端压缩后的文件名称
+  string   nameWithPath = 3; // 带有路径的文件名称，AC向客户端发起上传文件时，带有此参数，客户端上传到指定的路径文件
   int64    startTime    = 4; // 针对log&pcap,目标时间段开始
   int64    endTime      = 5; // 针对log&pcap,目标时间段结束
   bytes    content      = 7; // 文件二进制数据
@@ -308,6 +321,6 @@ message MsgFile {
 
 // 文件传输服务接口
 service FileTransport {
-  rpc GetFile(Message) returns (MsgFile){}; // 请求下载文件；客户端从OMC下载版本、配置；OMC从客户端下载是通过udp接口向客户端发送上传消息；
-  rpc PutFile(MsgFile) returns (Message){}; // 客户端向omc上传文件
+  rpc GetFile(Message) returns (Message){}; // 请求下载文件；客户端从AC下载版本、配置；AC从客户端下载是通过udp接口向客户端发送上传消息；
+  rpc PutFile(Message) returns (Message){}; // 客户端向AC上传文件
 }
